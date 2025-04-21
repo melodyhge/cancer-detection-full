@@ -1,0 +1,31 @@
+# Ignore everything by default
+*
+
+# Allow essential files and folders
+!app.py
+!requirements.txt
+!README.md
+!fine_tuned_model/
+
+# Optional: keep .gitignore visible
+!.gitignore
+
+# Ignore other scripts and unnecessary outputs
+evaluate_model.py
+evaluation_results.csv
+fine_tune.py
+generate_gradcam.py
+generate_gradcam_reports.py
+grad_cam.py
+
+# Ignore heavy folders
+logs/
+results/
+results_fold_0/
+results_fold_1/
+results_fold_2/
+results_fold_3/
+results_fold_4/
+gradcam_outputs/
+gradcam_outputs_non_cancerous/
+__pycache__/
