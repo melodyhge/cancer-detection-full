@@ -8,6 +8,11 @@ import time
 import random
 import numpy as np
 import hashlib
+import logging
+
+# ✅ Logging Setup
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("CancerPredictor")
 
 # ✅ Reproducibility
 torch.manual_seed(42)
@@ -18,90 +23,85 @@ torch.backends.cudnn.benchmark = False
 
 app = FastAPI()
 
-# ✅ Path to Fine-Tuned Model
 MODEL_PATH = r"C:\Users\User\Desktop\internship\OncoProject\backend\fine_tuned_model"
-
-# ✅ Device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(f"✅ Using device: {device}")
-print("✅ Using model from:", MODEL_PATH)
 
+logger.info(f"🖥 Using device: {device}")
+logger.info(f"📁 Loading model from: {MODEL_PATH}")
 
 # ✅ Load model and processor
 try:
-    print("🔹 Loading Processor...")
     processor = ViTImageProcessor.from_pretrained(MODEL_PATH, do_rescale=False)
-    print("✅ Processor loaded.")
+    logger.info("✅ Processor loaded.")
 
-    print("🔹 Loading Fine-Tuned Model...")
     model = ViTForImageClassification.from_pretrained(MODEL_PATH).to(device)
     model.eval()
-    print("✅ Model loaded successfully.")
-
+    logger.info("✅ Fine-tuned model loaded and set to eval mode.")
 except Exception as e:
-    print(f"❌ ERROR: Failed to load model. {e}")
+    logger.error(f"❌ Model loading failed: {e}")
     raise
 
 LABELS = ["cancerous", "non_cancerous"]
-CONFIDENCE_THRESHOLD = 50.0
+CONFIDENCE_THRESHOLD = 0.52
 
-# 🔐 Helper: Hash tensor for consistency check
 def tensor_hash(tensor):
     return hashlib.sha256(tensor.cpu().numpy().tobytes()).hexdigest()
 
 @app.post("/predict/")
 async def predict(file: UploadFile = File(...)):
     try:
-        print(f"📂 Received file: {file.filename}")
+        logger.info(f"📂 Received file: {file.filename}")
         start_time = time.time()
 
-        # ✅ Read image and preprocess
         image_bytes = await file.read()
-        print(f"🧪 Image size in bytes: {len(image_bytes)}")
+        logger.info(f"🧪 Image byte size: {len(image_bytes)}")
 
         image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-        print(f"🖼 Image mode: {image.mode}, size: {image.size}")
+        logger.info(f"🖼 Image loaded - Mode: {image.mode}, Size: {image.size}")
 
-        # Optional fixed resize for consistency
-        image = image.resize((224, 224))  # Avoid randomness in auto-resize
-        inputs = processor(images=image, return_tensors="pt", do_resize=False)
+        image = image.resize((224, 224))
 
-        # Tensor debug
+        inputs = processor(
+            images=image,
+            return_tensors="pt",
+            do_resize=False,
+            do_center_crop=False,
+            do_rescale=False
+        )
+
         pixel_values = inputs["pixel_values"]
-        print(f"🎯 Tensor Mean: {pixel_values.mean().item():.6f}, Std: {pixel_values.std().item():.6f}")
-        print(f"🎯 Tensor Min: {pixel_values.min().item():.6f}, Max: {pixel_values.max().item():.6f}")
-        print(f"🔐 Input tensor SHA-256: {tensor_hash(pixel_values)}")
+        logger.info(f"🎯 Tensor Stats — Mean: {pixel_values.mean().item():.4f}, Std: {pixel_values.std().item():.4f}")
+        logger.info(f"🔐 SHA-256 Tensor Hash: {tensor_hash(pixel_values)}")
 
-        # Send to device
         inputs = {k: v.to(device) for k, v in inputs.items()}
 
-        # ✅ Inference
         with torch.no_grad():
             outputs = model(**inputs)
             logits = outputs.logits
-        print(f"🔢 Logits: {logits}")
 
-        # ✅ Prediction
-        probs = torch.nn.functional.softmax(logits, dim=-1)
-        print(f"📊 Probabilities: {probs}")
+        logger.info(f"🔢 Logits: {logits}")
 
-        predicted_class_idx = probs.argmax(-1).item()
-        predicted_label = LABELS[predicted_class_idx]
-        confidence = round(probs[0][predicted_class_idx].item() * 100, 2)
+        probs = torch.nn.functional.softmax(logits, dim=-1).squeeze()  # shape: (2,)
+        confidence, predicted_class_idx = torch.max(probs, dim=0)
 
-        # Handle low confidence
-        if confidence < CONFIDENCE_THRESHOLD:
-            predicted_label = "Uncertain"
+        LABELS = {0: "cancerous", 1: "non_cancerous"}
+        predicted_label = LABELS[predicted_class_idx.item()]
+        confidence_percent = round(confidence.item() * 100, 2)
+
+        # 💡 Threshold logic: mark uncertain if confidence is too low
+        if confidence.item() < CONFIDENCE_THRESHOLD:
+            predicted_label = "uncertain"
+            logger.warning(f"⚠️ Confidence below threshold ({confidence_percent}%). Marked as uncertain.")
 
         response_time = round((time.time() - start_time) * 1000, 2)
-        print(f"🔍 Prediction: {predicted_label} ({confidence}%) - Time: {response_time}ms")
+        logger.info(f"✅ Final Prediction: {predicted_label} ({confidence_percent}%) | ⏱ Time: {response_time}ms")
 
         return JSONResponse({
             "prediction": predicted_label,
-            "confidence": confidence,
+            "confidence": confidence_percent,
             "processing_time_ms": response_time
         })
 
     except Exception as e:
-        print(f"❌ ERROR: {e}")
+        logger.error(f"❌ Prediction error: {e}")
         return JSONResponse({"error": str(e)}, status_code=500)

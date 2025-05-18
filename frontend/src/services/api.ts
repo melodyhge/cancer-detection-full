@@ -1,26 +1,24 @@
+const API_BASE_URL = "http://localhost:8000"; // ✅ Change for production if needed
 
-// Define the base URL for your FastAPI service
-const API_BASE_URL = "http://localhost:8000"; // Update this to your actual FastAPI endpoint
-
-// Define the response type
 export interface PredictionResponse {
-  prediction: string; // "cancerous" or "non_cancerous" or "Uncertain"
-  confidence: number; // Value between 0 and 100
-  processing_time_ms?: number; // Optional processing time in milliseconds
+  prediction: "cancerous" | "non_cancerous" | "uncertain";
+  confidence: number;
+  processing_time_ms?: number;
 }
 
 /**
- * Sends an image to the FastAPI backend for analysis
- * 
- * @param imageFile The image file to analyze
- * @returns A promise with the prediction results
+ * Sends an image to the FastAPI backend for prediction
  */
-export const analyzeLungImage = async (imageFile: File): Promise<PredictionResponse> => {
+export const analyzeLungImage = async (
+  imageFile: File,
+  onSuccess?: (data: PredictionResponse) => void,
+  onError?: (error: any) => void
+): Promise<PredictionResponse> => {
   try {
     const formData = new FormData();
     formData.append("file", imageFile);
 
-    const response = await fetch(`${API_BASE_URL}/predict`, {
+    const response = await fetch(`${API_BASE_URL}/predict/`, {
       method: "POST",
       body: formData,
     });
@@ -29,19 +27,33 @@ export const analyzeLungImage = async (imageFile: File): Promise<PredictionRespo
       throw new Error(`API Error: ${response.status} ${response.statusText}`);
     }
 
-    const data = await response.json();
+    const data: PredictionResponse = await response.json();
+    console.log("🧪 Prediction result:", data);
+
+    const pred = data.prediction?.toLowerCase();
+
+    // Normalize label (just in case backend gives "Uncertain" capitalized)
+    if (pred === "cancerous" || pred === "non_cancerous" || pred === "uncertain") {
+      data.prediction = pred;
+    } else {
+      console.warn("⚠️ Unexpected prediction value:", pred);
+      data.prediction = "uncertain"; // fallback
+    }
     
-    // If a webhook URL is configured in localStorage, send the results there
+    // 🔄 Send to webhook if available
     const webhookUrl = localStorage.getItem("webhookUrl");
     if (webhookUrl) {
       await sendResultsToWebhook(data, imageFile.name, webhookUrl);
     }
-    
+
+    if (onSuccess) onSuccess(data);
     return data;
+
   } catch (error) {
-    console.error("Error during API call:", error);
-    // For demo purposes, return mock data when API is unavailable
-    // In production, you should handle this error appropriately
+    console.error("❌ Error during prediction:", error);
+    if (onError) onError(error);
+
+    // Return fallback for testing
     return {
       prediction: Math.random() > 0.5 ? "cancerous" : "non_cancerous",
       confidence: 70 + Math.random() * 25,
@@ -50,33 +62,25 @@ export const analyzeLungImage = async (imageFile: File): Promise<PredictionRespo
 };
 
 /**
- * Sends analysis results to a webhook
- * 
- * @param result The prediction result
- * @param filename The original image filename
- * @param webhookUrl The URL to send the data to
+ * Sends results to a webhook (optional)
  */
 export const sendResultsToWebhook = async (
-  result: PredictionResponse, 
+  result: PredictionResponse,
   filename: string,
   webhookUrl: string
 ): Promise<void> => {
   if (!webhookUrl) {
-    console.warn("Webhook URL not configured. Skipping data storage.");
+    console.warn("⚠️ Webhook URL not set. Skipping...");
     return;
   }
-  
+
   try {
-    const timestamp = new Date().toISOString();
-    
     const payload = {
-      timestamp: timestamp,
-      filename: filename,
-      prediction: result.prediction,
-      confidence: result.confidence,
-      processing_time_ms: result.processing_time_ms,
+      timestamp: new Date().toISOString(),
+      filename,
+      ...result,
     };
-    
+
     const response = await fetch(webhookUrl, {
       method: "POST",
       headers: {
@@ -84,14 +88,14 @@ export const sendResultsToWebhook = async (
       },
       body: JSON.stringify(payload),
     });
-    
+
     if (!response.ok) {
-      throw new Error(`Failed to send data to webhook: ${response.status} ${response.statusText}`);
+      throw new Error(`Webhook failed: ${response.status} ${response.statusText}`);
     }
-    
-    console.log("Results successfully sent to webhook");
+
+    console.log("✅ Webhook sent successfully");
+
   } catch (error) {
-    console.error("Error sending data to webhook:", error);
-    throw error;
+    console.error("❌ Failed to send webhook:", error);
   }
 };
