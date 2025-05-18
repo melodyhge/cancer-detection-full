@@ -16,40 +16,40 @@ interface ResultViewProps {
 const ResultView: React.FC<ResultViewProps> = ({ result, className }) => {
   if (!result) return null;
 
-  const prediction = result.prediction?.toLowerCase() as "cancerous" | "non_cancerous" | "uncertain";
+  const prediction = result.prediction;
   const confidencePercent = result.confidence.toFixed(2);
 
   const isCancerous = prediction === "cancerous";
   const isNonCancerous = prediction === "non_cancerous";
-  const isUncertain = prediction === "uncertain";
+  //const isUncertain = prediction === "uncertain";
 
   const getDiagnosisText = () => {
-    if (isCancerous) return "⚠️ Cancer Detected";
-    if (isNonCancerous) return "✅ No Cancer Detected";
-    if (isUncertain) return "❓ Prediction Uncertain";
+    if (prediction === "cancerous") return "⚠️ Cancer Detected";
+    if (prediction === "non_cancerous") return "✅ No Cancer Detected";
+    //if (isUncertain) return "❓ Prediction Uncertain";
     return "❓ Invalid Prediction";
   };
 
   const getDiagnosisColor = () => {
-    if (isCancerous) return "text-destructive";
-    if (isNonCancerous) return "text-emerald-600";
-    if (isUncertain) return "text-yellow-500";
+    if (prediction === "cancerous") return "text-destructive";
+    if (prediction === "non_cancerous") return "text-emerald-600";
+    //if (isUncertain) return "text-yellow-500";
     return "text-gray-500";
   };
 
   const getBarColor = () => {
-    if (isCancerous) return "bg-destructive";
-    if (isNonCancerous) return "bg-emerald-500";
-    if (isUncertain) return "bg-yellow-500";
+    if (prediction === "cancerous") return "bg-destructive";
+    if (prediction === "non_cancerous") return "bg-emerald-500";
+    //if (isUncertain) return "bg-yellow-500";
     return "bg-gray-400";
   };
 
   const getInterpretation = () => {
-    if (isUncertain)
-      return "The AI model wasn't confident enough to determine the result. Please upload a clearer image or consult a specialist.";
-    if (isCancerous)
+    //if (isUncertain)
+      //return "The AI model wasn't confident enough to determine the result. Please upload a clearer image or consult a specialist.";
+    if (prediction === "cancerous")
       return "The scan shows indicators consistent with cancerous tissue. Please consult a healthcare professional.";
-    if (isNonCancerous)
+    if (prediction === "non_cancerous")
       return "The scan appears normal. Still, consult a healthcare professional for full evaluation.";
     return "No interpretation available. Please try another image.";
   };

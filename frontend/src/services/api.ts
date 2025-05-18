@@ -1,7 +1,7 @@
 const API_BASE_URL = "http://localhost:8000"; // ✅ Change for production if needed
 
 export interface PredictionResponse {
-  prediction: "cancerous" | "non_cancerous" | "uncertain";
+  prediction: "cancerous" | "non_cancerous";
   confidence: number;
   processing_time_ms?: number;
 }
@@ -30,14 +30,14 @@ export const analyzeLungImage = async (
     const data: PredictionResponse = await response.json();
     console.log("🧪 Prediction result:", data);
 
-    const pred = data.prediction?.toLowerCase();
+    const pred = data.prediction;
 
     // Normalize label (just in case backend gives "Uncertain" capitalized)
-    if (pred === "cancerous" || pred === "non_cancerous" || pred === "uncertain") {
+    if (pred === "cancerous" || pred === "non_cancerous") {
       data.prediction = pred;
     } else {
       console.warn("⚠️ Unexpected prediction value:", pred);
-      data.prediction = "uncertain"; // fallback
+      // data.prediction = "uncertain"; // fallback
     }
     
     // 🔄 Send to webhook if available
@@ -54,10 +54,7 @@ export const analyzeLungImage = async (
     if (onError) onError(error);
 
     // Return fallback for testing
-    return {
-      prediction: Math.random() > 0.5 ? "cancerous" : "non_cancerous",
-      confidence: 70 + Math.random() * 25,
-    };
+    return null;
   }
 };
 

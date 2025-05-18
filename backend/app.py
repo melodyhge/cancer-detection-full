@@ -3,12 +3,16 @@ import torch
 from PIL import Image
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+
 import io
 import time
 import random
 import numpy as np
 import hashlib
 import logging
+
+
 
 # ✅ Logging Setup
 logging.basicConfig(level=logging.INFO)
@@ -22,6 +26,14 @@ torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:8081"],  # Use "*" for all origins if needed
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 MODEL_PATH = r"C:\Users\User\Desktop\internship\OncoProject\backend\fine_tuned_model"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -42,7 +54,7 @@ except Exception as e:
     raise
 
 LABELS = ["cancerous", "non_cancerous"]
-CONFIDENCE_THRESHOLD = 0.52
+CONFIDENCE_THRESHOLD = 0.50
 
 def tensor_hash(tensor):
     return hashlib.sha256(tensor.cpu().numpy().tobytes()).hexdigest()
@@ -66,7 +78,7 @@ async def predict(file: UploadFile = File(...)):
             return_tensors="pt",
             do_resize=False,
             do_center_crop=False,
-            do_rescale=False
+            do_rescale=True  # ✅ Let processor normalize to [0,1] as in training
         )
 
         pixel_values = inputs["pixel_values"]

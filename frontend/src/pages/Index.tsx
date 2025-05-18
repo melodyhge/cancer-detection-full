@@ -203,10 +203,10 @@ const Index = () => {
       setResult(predictionResult);
       toast.success("Analysis complete");
 
-      if (webhookUrl) {
-        console.log("📤 Would send result to webhook:", webhookUrl);
-        toast.success("Results saved to external DB");
-      }
+      // if (webhookUrl) {
+      //   console.log("📤 Would send result to webhook:", webhookUrl);
+      //   toast.success("Results saved to external DB");
+      // }
 
     } catch (error) {
       console.error("❌ Prediction error:", error);
